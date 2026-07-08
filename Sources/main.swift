@@ -25,17 +25,17 @@ let screenWidth: Int32 = 800
 let screenHeight: Int32 = 600
 
 let characterSpeed: Float = 1.0
-let characterHitboxSize = 8
+let characterHitboxSize = 20
 
 InitWindow(screenWidth, screenHeight, "Dungeon Sin")
 SetTargetFPS(60)
 
 let tileset = LoadTexture("Assets/dungeon_tiles.png")
 let characterTileSrc = Rectangle(
-    x: 196,
+    x: 194,
     y: 160,
-    width: (213 - 196),
-    height: (180 - 160)
+    width: 20,
+    height: 20
 )
 
 enum Tile {
@@ -92,7 +92,7 @@ struct Character {
 }
 
 var char = Character(
-    pos: Vector2(x: 20, y: 20),
+    pos: Vector2(x: 2*Float(characterHitboxSize), y: 2*Float(characterHitboxSize)),
     vel: Vector2Zero()
 )
 
@@ -112,8 +112,9 @@ var charMoveAnim = Animation<Float>(
     Callbacks
 */
 func moveChar(map: Map, char: Character) -> Vector2 {
+    let hb: Float = Float(characterHitboxSize)
     let np = Vector2Add(char.pos, char.vel)
-    let charRec = Rectangle(x: np.x, y: np.y, width: Float(characterHitboxSize), height: Float(characterHitboxSize))
+    let charRec = Rectangle(x: np.x - hb/2, y: np.y - hb/2, width: hb, height: hb)
     for (y, tilerow) in map.tiles.enumerated() {
         for (x, tile) in tilerow.enumerated() {
             if tile == .floor {
@@ -152,7 +153,6 @@ func draw() {
     ClearBackground(RL_RAYWHITE)
     camera.target = char.pos
     BeginMode2D(camera)
-    //DrawTexture(tileset, 0, 0, RL_WHITE)
     for (y,tilerow) in map.tiles.enumerated() {
         for (x,tile) in tilerow.enumerated() {
             let dst = Vector2(
@@ -162,7 +162,15 @@ func draw() {
             DrawTextureRec(tileset, tile.src, dst, RL_WHITE)
         }
     }
-    DrawTextureRec(tileset, characterTileSrc, Vector2(x: char.pos.x, y: char.pos.y + charMoveAnim.param), RL_WHITE)
+    DrawTextureRec(
+        tileset, 
+        characterTileSrc, 
+        Vector2(
+            x: char.pos.x - characterTileSrc.width/2, 
+            y: char.pos.y - characterTileSrc.height/2 + charMoveAnim.param
+        ), 
+        RL_WHITE
+    )
     EndMode2D()
 }
 

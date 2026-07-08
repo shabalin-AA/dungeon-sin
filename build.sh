@@ -1,11 +1,26 @@
 #!/bin/sh
 set -xe
 
-swiftc \
-  -static -static-stdlib \
-  Sources/main.swift \
-  -I ./Libraries/raylib-6.0_linux_amd64/include \
-  -L ./Libraries/raylib-6.0_linux_amd64/lib \
-  ./Libraries/raylib-6.0_linux_amd64/lib/libraylib.a \
-  -lm -lX11
+OS="$(uname -s)"
 
+RAYLIB="./Libraries/raylib-6.0_linux_amd64_macos"
+
+if [ $OS = "Linux" ]; then
+    swiftc \
+      -static -static-stdlib \
+      Sources/main.swift \
+      -I $RAYLIB/include \
+      -L $RAYLIB/lib \
+      $RAYLIB/lib/libraylib_linux.a \
+      -lm -lX11
+fi
+
+if [ $OS = "Darwin" ]; then
+    swiftc \
+      -static \
+      Sources/main.swift \
+      -I $RAYLIB/include \
+      -L $RAYLIB/lib \
+      $RAYLIB/lib/libraylib_macos.a \
+      -framework Cocoa -framework IOKit -framework CoreVideo -framework OpenGL
+fi
