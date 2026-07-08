@@ -25,7 +25,7 @@ let screenWidth: Int32 = 800
 let screenHeight: Int32 = 600
 
 let characterSpeed: Float = 1.0
-let characterHitboxSize = 20
+let characterHitboxSize: Float = 16
 
 InitWindow(screenWidth, screenHeight, "Dungeon Sin")
 SetTargetFPS(60)
@@ -83,7 +83,7 @@ var camera = Camera2D(
     offset: Vector2(x: Float(screenWidth) / 2, y: Float(screenHeight) / 2),
     target: Vector2(x: 0, y: 0),
     rotation: 0,
-    zoom: 2.0
+    zoom: 3
 )
 
 struct Character {
@@ -92,7 +92,7 @@ struct Character {
 }
 
 var char = Character(
-    pos: Vector2(x: 2*Float(characterHitboxSize), y: 2*Float(characterHitboxSize)),
+    pos: Vector2(x: 2*characterHitboxSize, y: 2*characterHitboxSize),
     vel: Vector2Zero()
 )
 
@@ -112,7 +112,7 @@ var charMoveAnim = Animation<Float>(
     Callbacks
 */
 func moveChar(map: Map, char: Character) -> Vector2 {
-    let hb: Float = Float(characterHitboxSize)
+    let hb: Float = characterHitboxSize
     let np = Vector2Add(char.pos, char.vel)
     let charRec = Rectangle(x: np.x - hb/2, y: np.y - hb/2, width: hb, height: hb)
     for (y, tilerow) in map.tiles.enumerated() {
@@ -162,13 +162,17 @@ func draw() {
             DrawTextureRec(tileset, tile.src, dst, RL_WHITE)
         }
     }
-    DrawTextureRec(
+    DrawTexturePro(
         tileset, 
         characterTileSrc, 
-        Vector2(
-            x: char.pos.x - characterTileSrc.width/2, 
-            y: char.pos.y - characterTileSrc.height/2 + charMoveAnim.param
-        ), 
+        Rectangle(
+            x: char.pos.x - characterHitboxSize/2,
+            y: char.pos.y - characterHitboxSize/2 + charMoveAnim.param,
+            width: characterHitboxSize,
+            height: characterHitboxSize
+        ),
+        Vector2Zero(),
+        0.0,
         RL_WHITE
     )
     EndMode2D()
