@@ -26,7 +26,7 @@ let screenHeight: Int32 = 600
 InitWindow(screenWidth, screenHeight, "Dungeon Sin")
 SetTargetFPS(60)
 let tileset = LoadTexture("Assets/dungeon_tiles.png")
-let tileSize = 16
+let tileSize: Float = 16
 
 enum EntityKind {
     case greenWizard
@@ -36,29 +36,35 @@ enum EntityKind {
 struct Entity { let id: Int }
 var Entities: [Entity] = []
 
-var Position:   [Vector2]    = []
-var Velocity:   [Vector2]    = []
-var Speed:      [Float]      = []
-var Hitbox:     [Float]      = []
-var Kind:       [EntityKind] = []
-var TileSrc:    [Rectangle]  = []
+var MapPosition:  [Vector2]    = []
+var TilePosition: [Vector2]    = []
+var Speed:        [Float]      = []
+var Hitbox:       [Float]      = []
+var Kind:         [EntityKind] = []
+var TileSrc:      [Rectangle]  = []
+var EntityTarget: [Entity?]     = []
+var MapTarget:    [Vector2?]    = []
 
 func createEntity(
-    position: Vector2,
-    velocity: Vector2,
+    mapPosition: Vector2,
+    tilePosition: Vector2,
     speed: Float,
     hitbox: Float,
     kind: EntityKind,
-    tileSrc: Rectangle
+    tileSrc: Rectangle,
+    entityTarget: Entity?,
+    mapTarget: Vector2?
 ) -> Entity {
     let res = Entity(id: Entities.count)
     Entities.append(res)
-    Position.append(position)
-    Velocity.append(velocity)
+    MapPosition.append(mapPosition)
+    TilePosition.append(tilePosition)
     Speed.append(speed)
     Hitbox.append(hitbox)
     Kind.append(kind)
     TileSrc.append(tileSrc)
+    EntityTarget.append(entityTarget)
+    MapTarget.append(mapTarget)
     return res
 }
 
@@ -72,15 +78,15 @@ enum Tile {
                 return Rectangle(
                     x: 77,
                     y: 46,
-                    width: (93 - 77),
-                    height: (62 - 46)
+                    width: tileSize,
+                    height: tileSize
                 )
             case .wall:
                 return Rectangle(
                     x: 48,
                     y: 228,
-                    width: (64 - 48),
-                    height: (244 - 228)
+                    width: tileSize,
+                    height: tileSize
                 )
         }
     }
@@ -109,86 +115,99 @@ var camera = Camera2D(
 )
 
 var character = createEntity(
-    position: Vector2(x: 40, y: 40),
-    velocity: Vector2Zero(),
+    mapPosition: Vector2(x: 2, y: 2),
+    tilePosition: Vector2Zero(),
     speed:    2.0,
     hitbox:   16,
     kind:     .greenWizard,
-    tileSrc:  Rectangle( x: 194, y: 160, width: 20, height: 20 )
+    tileSrc:  Rectangle( x: 194, y: 160, width: 20, height: 20 ),
+    entityTarget: nil,
+    mapTarget: Vector2(x: 7, y: 7)
 )
 
 var character2 = createEntity(
-    position: Vector2(x: 80, y: 80),
-    velocity: Vector2Zero(),
+    mapPosition: Vector2(x: 3, y: 3),
+    tilePosition: Vector2Zero(),
     speed:    2.0,
     hitbox:   16,
     kind:     .blueWizard,
-    tileSrc:  Rectangle( x: 204, y: 182, width: 20, height: 20 )
+    tileSrc:  Rectangle( x: 204, y: 182, width: 20, height: 20 ),
+    entityTarget: character,
+    mapTarget: nil
 )
 
 /*
     Callbacks
 */
-func moveEntity(map: Map, entity: Entity) -> Vector2 {
-    let hb: Float = Hitbox[entity.id]
-    let np = Vector2Add(Position[entity.id], Velocity[entity.id])
-    let entityRec = Rectangle(x: np.x - hb/2, y: np.y - hb/2, width: hb, height: hb)
-    for (y, tilerow) in map.tiles.enumerated() {
-        for (x, tile) in tilerow.enumerated() {
-            if tile == .floor {
-                continue
-            }
-            let wallRec = Rectangle(
-                x: Float(x * tileSize), 
-                y: Float(y * tileSize), 
-                width: Float(tileSize), 
-                height: Float(tileSize)
-            )
-            if CheckCollisionRecs(entityRec, wallRec) {
-                return Position[entity.id]
-            }
-        }
+func moveEntity(e: Entity) {
+    let mapTarget: Vector2?
+    if let entityTarget = EntityTarget[e.id] {
+        mapTarget = MapPosition[entityTarget.id]
+    } else {
+        mapTarget = MapTarget[e.id]
     }
-    return np
+    guard let mapTarget else { return }
+    let currentMapPos = MapPosition[e.id]
+    let currentTilePos = TilePosition[e.id]
+    let speed = Speed[e.id]
+    let targetTile = Vector2(
+        x: (mapTarget.x - currentMapPos.x) * tileSize,
+        y: (mapTarget.y - currentMapPos.y) * tileSize
+    )
+    let diff = Vector2(
+        x: targetTile.x - currentTilePos.x,
+        y: targetTile.y - currentTilePos.y
+    )
+    let dist = sqrtf(diff.x * diff.x + diff.y * diff.y)
+    guard dist > 0 else { return }
+    let step = min(speed, dist)
+    let dir = Vector2(x: diff.x / dist, y: diff.y / dist)
+    let moved = Vector2(
+        x: currentTilePos.x + dir.x * step,
+        y: currentTilePos.y + dir.y * step
+    )
+    let deltaMapX = floorf(moved.x / tileSize)
+    let deltaMapY = floorf(moved.y / tileSize)
+    let newTilePos = Vector2(
+        x: moved.x - deltaMapX * tileSize,
+        y: moved.y - deltaMapY * tileSize
+    )
+    MapPosition[e.id] = Vector2(
+        x: currentMapPos.x + deltaMapX,
+        y: currentMapPos.y + deltaMapY
+    )
+    TilePosition[e.id] = newTilePos
 }
 
 func update() {
     for e in Entities {
-        if e.id == character.id {
-            Velocity[e.id] = Vector2Zero()
-            if IsKeyDown(RL_KEY_W) { Velocity[e.id].y -= Speed[e.id] }
-            if IsKeyDown(RL_KEY_A) { Velocity[e.id].x -= Speed[e.id] }
-            if IsKeyDown(RL_KEY_S) { Velocity[e.id].y += Speed[e.id] }
-            if IsKeyDown(RL_KEY_D) { Velocity[e.id].x += Speed[e.id] }
-        }
-        Velocity[e.id] = Vector2Normalize(Velocity[e.id])
-        Position[e.id] = moveEntity(map: map, entity: e)
+        moveEntity(e: e)
     }
 }
 
 func draw() {
     ClearBackground(RL_RAYWHITE)
-    camera.target = Position[character.id]
+    camera.target = Vector2Add(
+        Vector2Scale(MapPosition[character.id], tileSize), 
+        TilePosition[character.id]
+    )
     BeginMode2D(camera)
     for (y,tilerow) in map.tiles.enumerated() {
         for (x,tile) in tilerow.enumerated() {
             let dst = Vector2(
-                x: Float(x * tileSize), 
-                y: Float(y * tileSize)
+                x: Float(x) * tileSize, 
+                y: Float(y) * tileSize
             )
             DrawTextureRec(tileset, tile.src, dst, RL_WHITE)
         }
     }
     for e in Entities {
+        let xpos = MapPosition[e.id].x*tileSize + TilePosition[e.id].x - tileSize/2
+        let ypos = MapPosition[e.id].y*tileSize + TilePosition[e.id].y - tileSize/2
         DrawTexturePro(
             tileset, 
             TileSrc[e.id], 
-            Rectangle(
-                x: Position[e.id].x - Float(tileSize)/2,
-                y: Position[e.id].y - Float(tileSize)/2,
-                width:  Float(tileSize),
-                height: Float(tileSize)
-            ),
+            Rectangle( x: xpos, y: ypos, width:  tileSize, height: tileSize),
             Vector2Zero(),
             0.0,
             RL_WHITE
