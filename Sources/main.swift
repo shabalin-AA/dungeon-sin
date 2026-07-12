@@ -23,20 +23,44 @@ let RL_KEY_D = Int32(KEY_D.rawValue)
 */
 let screenWidth: Int32 = 800
 let screenHeight: Int32 = 600
-
-let characterSpeed: Float = 1.0
-let characterHitboxSize: Float = 16
-
 InitWindow(screenWidth, screenHeight, "Dungeon Sin")
 SetTargetFPS(60)
-
 let tileset = LoadTexture("Assets/dungeon_tiles.png")
-let characterTileSrc = Rectangle(
-    x: 194,
-    y: 160,
-    width: 20,
-    height: 20
-)
+let tileSize = 16
+
+enum EntityKind {
+    case greenWizard
+    case blueWizard
+}
+
+struct Entity { let id: Int }
+var Entities: [Entity] = []
+
+var Position:   [Vector2]    = []
+var Velocity:   [Vector2]    = []
+var Speed:      [Float]      = []
+var Hitbox:     [Float]      = []
+var Kind:       [EntityKind] = []
+var TileSrc:    [Rectangle]  = []
+
+func createEntity(
+    position: Vector2,
+    velocity: Vector2,
+    speed: Float,
+    hitbox: Float,
+    kind: EntityKind,
+    tileSrc: Rectangle
+) -> Entity {
+    let res = Entity(id: Entities.count)
+    Entities.append(res)
+    Position.append(position)
+    Velocity.append(velocity)
+    Speed.append(speed)
+    Hitbox.append(hitbox)
+    Kind.append(kind)
+    TileSrc.append(tileSrc)
+    return res
+}
 
 enum Tile {
     case floor
@@ -64,7 +88,6 @@ enum Tile {
 
 struct Map {
     var tiles: [[Tile]]
-    var screenPos: Vector2
 }
 
 func genRoom(maxWidth: Int, maxHeight: Int) -> [[Tile]] {
@@ -76,8 +99,7 @@ func genRoom(maxWidth: Int, maxHeight: Int) -> [[Tile]] {
     return room
 }
 
-var map = Map(tiles: genRoom(maxWidth: 20, maxHeight: 20), screenPos: Vector2Zero())
-let tileSize = 16
+var map = Map(tiles: genRoom(maxWidth: 20, maxHeight: 20))
 
 var camera = Camera2D(
     offset: Vector2(x: Float(screenWidth) / 2, y: Float(screenHeight) / 2),
@@ -86,95 +108,92 @@ var camera = Camera2D(
     zoom: 3
 )
 
-struct Character {
-    var pos: Vector2
-    var vel: Vector2
-}
-
-var char = Character(
-    pos: Vector2(x: 2*characterHitboxSize, y: 2*characterHitboxSize),
-    vel: Vector2Zero()
+var character = createEntity(
+    position: Vector2(x: 40, y: 40),
+    velocity: Vector2Zero(),
+    speed:    2.0,
+    hitbox:   16,
+    kind:     .greenWizard,
+    tileSrc:  Rectangle( x: 194, y: 160, width: 20, height: 20 )
 )
 
-struct Animation<T> {
-    var param: T
-    var period: Float
-    var time: Float
-}
-
-var charMoveAnim = Animation<Float>(
-    param: 1,
-    period: 0.2,
-    time: 0
+var character2 = createEntity(
+    position: Vector2(x: 80, y: 80),
+    velocity: Vector2Zero(),
+    speed:    2.0,
+    hitbox:   16,
+    kind:     .blueWizard,
+    tileSrc:  Rectangle( x: 204, y: 182, width: 20, height: 20 )
 )
 
 /*
     Callbacks
 */
-func moveChar(map: Map, char: Character) -> Vector2 {
-    let hb: Float = characterHitboxSize
-    let np = Vector2Add(char.pos, char.vel)
-    let charRec = Rectangle(x: np.x - hb/2, y: np.y - hb/2, width: hb, height: hb)
+func moveEntity(map: Map, entity: Entity) -> Vector2 {
+    let hb: Float = Hitbox[entity.id]
+    let np = Vector2Add(Position[entity.id], Velocity[entity.id])
+    let entityRec = Rectangle(x: np.x - hb/2, y: np.y - hb/2, width: hb, height: hb)
     for (y, tilerow) in map.tiles.enumerated() {
         for (x, tile) in tilerow.enumerated() {
             if tile == .floor {
                 continue
             }
             let wallRec = Rectangle(
-                x: map.screenPos.x + Float(x * tileSize), 
-                y: map.screenPos.y + Float(y * tileSize), 
+                x: Float(x * tileSize), 
+                y: Float(y * tileSize), 
                 width: Float(tileSize), 
                 height: Float(tileSize)
             )
-            if CheckCollisionRecs(charRec, wallRec) {
-                return char.pos
+            if CheckCollisionRecs(entityRec, wallRec) {
+                return Position[entity.id]
             }
         }
     }
     return np
 }
 
-func update(dt: Float) {
-    char.vel = Vector2Zero()
-    if IsKeyDown(RL_KEY_W) { char.vel.y -= characterSpeed }
-    if IsKeyDown(RL_KEY_A) { char.vel.x -= characterSpeed }
-    if IsKeyDown(RL_KEY_S) { char.vel.y += characterSpeed }
-    if IsKeyDown(RL_KEY_D) { char.vel.x += characterSpeed }
-    char.vel = Vector2Normalize(char.vel)
-    char.pos = moveChar(map: map, char: char)
-    charMoveAnim.time += dt
-    if charMoveAnim.time > charMoveAnim.period {
-        charMoveAnim.time = 0.0
-        charMoveAnim.param = -charMoveAnim.param
+func update() {
+    for e in Entities {
+        if e.id == character.id {
+            Velocity[e.id] = Vector2Zero()
+            if IsKeyDown(RL_KEY_W) { Velocity[e.id].y -= Speed[e.id] }
+            if IsKeyDown(RL_KEY_A) { Velocity[e.id].x -= Speed[e.id] }
+            if IsKeyDown(RL_KEY_S) { Velocity[e.id].y += Speed[e.id] }
+            if IsKeyDown(RL_KEY_D) { Velocity[e.id].x += Speed[e.id] }
+        }
+        Velocity[e.id] = Vector2Normalize(Velocity[e.id])
+        Position[e.id] = moveEntity(map: map, entity: e)
     }
 }
 
 func draw() {
     ClearBackground(RL_RAYWHITE)
-    camera.target = char.pos
+    camera.target = Position[character.id]
     BeginMode2D(camera)
     for (y,tilerow) in map.tiles.enumerated() {
         for (x,tile) in tilerow.enumerated() {
             let dst = Vector2(
-                x: map.screenPos.x + Float(x * tileSize), 
-                y: map.screenPos.y + Float(y * tileSize)
+                x: Float(x * tileSize), 
+                y: Float(y * tileSize)
             )
             DrawTextureRec(tileset, tile.src, dst, RL_WHITE)
         }
     }
-    DrawTexturePro(
-        tileset, 
-        characterTileSrc, 
-        Rectangle(
-            x: char.pos.x - characterHitboxSize/2,
-            y: char.pos.y - characterHitboxSize/2 + charMoveAnim.param,
-            width: characterHitboxSize,
-            height: characterHitboxSize
-        ),
-        Vector2Zero(),
-        0.0,
-        RL_WHITE
-    )
+    for e in Entities {
+        DrawTexturePro(
+            tileset, 
+            TileSrc[e.id], 
+            Rectangle(
+                x: Position[e.id].x - Float(tileSize)/2,
+                y: Position[e.id].y - Float(tileSize)/2,
+                width:  Float(tileSize),
+                height: Float(tileSize)
+            ),
+            Vector2Zero(),
+            0.0,
+            RL_WHITE
+        )
+    }
     EndMode2D()
 }
 
@@ -182,7 +201,7 @@ func draw() {
     Main
 */
 while !WindowShouldClose() {
-    update(dt: GetFrameTime())
+    update()
     BeginDrawing()
     draw()
     EndDrawing()
